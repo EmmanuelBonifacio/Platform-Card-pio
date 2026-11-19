@@ -76,6 +76,9 @@ export const useCart = create<CartState>()(
         }, 0),
       count: () => get().items.reduce((a, i) => a + i.quantity, 0),
     }),
-    { name: 'pc-cart-v1' },
+    {
+      name: 'pc-cart-v1',
+      skipHydration: true,
+    },
   ),
 );

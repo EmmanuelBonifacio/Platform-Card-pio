@@ -38,7 +38,12 @@ type Menu = {
 };
 
 export function MenuExperience({ menu }: { menu: Menu }) {
-  const cart = useCart();
+  const items = useCart((s) => s.items);
+  const addItem = useCart((s) => s.addItem);
+  const setQty = useCart((s) => s.setQty);
+  const clear = useCart((s) => s.clear);
+  const setSlug = useCart((s) => s.setSlug);
+  const [hydrated, setHydrated] = useState(false);
   const [open, setOpen] = useState(false);
   const [checkout, setCheckout] = useState(false);
   const [name, setName] = useState('');
@@ -51,8 +56,11 @@ export function MenuExperience({ menu }: { menu: Menu }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    cart.setSlug(menu.tenant.slug);
-  }, [menu.tenant.slug, cart]);
+    void useCart.persist.rehydrate().then(() => {
+      setHydrated(true);
+      setSlug(menu.tenant.slug);
+    });
+  }, [menu.tenant.slug, setSlug]);
 
   const featured = useMemo(
     () =>
@@ -62,8 +70,11 @@ export function MenuExperience({ menu }: { menu: Menu }) {
     [menu.categories],
   );
 
-  const total = cart.totalCents();
-  const count = cart.count();
+  const total = items.reduce((acc, item) => {
+    const addons = (item.addons ?? []).reduce((a, x) => a + x.priceCents, 0);
+    return acc + (item.unitPriceCents + addons) * item.quantity;
+  }, 0);
+  const count = items.reduce((a, i) => a + i.quantity, 0);
 
   async function placeOrder() {
     setBusy(true);
@@ -72,7 +83,7 @@ export function MenuExperience({ menu }: { menu: Menu }) {
       if (phone.replace(/\D/g, '').length < 10) {
         throw new Error('Informe um WhatsApp válido');
       }
-      if (!cart.items.length) throw new Error('Carrinho vazio');
+      if (!items.length) throw new Error('Carrinho vazio');
       const order = await apiPost<{ number: number }>(
         `/public/${menu.tenant.slug}/orders`,
         {
@@ -83,7 +94,7 @@ export function MenuExperience({ menu }: { menu: Menu }) {
           addressJson:
             type === 'DELIVERY' ? { line: address } : undefined,
           source: 'web',
-          items: cart.items.map((i) => ({
+          items: items.map((i) => ({
             productId: i.productId,
             name: i.name,
             quantity: i.quantity,
@@ -92,7 +103,7 @@ export function MenuExperience({ menu }: { menu: Menu }) {
           })),
         },
       );
-      cart.clear();
+      clear();
       setDone({ number: order.number });
       setCheckout(false);
       setOpen(false);
@@ -137,7 +148,7 @@ export function MenuExperience({ menu }: { menu: Menu }) {
                     key={p.id}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => {
-                      cart.addItem({
+                      addItem({
                         key: p.id,
                         productId: p.id,
                         name: p.name,
@@ -190,7 +201,7 @@ export function MenuExperience({ menu }: { menu: Menu }) {
                           variant="lime"
                           className="mt-3"
                           onClick={() => {
-                            cart.addItem({
+                            addItem({
                               key: p.id,
                               productId: p.id,
                               name: p.name,
@@ -232,7 +243,7 @@ export function MenuExperience({ menu }: { menu: Menu }) {
                         variant="ghost"
                         className="mt-2"
                         onClick={() => {
-                          cart.addItem({
+                          addItem({
                             key: `combo-${c.id}`,
                             name: c.name,
                             unitPriceCents: c.priceCents,
@@ -251,8 +262,11 @@ export function MenuExperience({ menu }: { menu: Menu }) {
         ) : null}
       </div>
 
+      {/* evita mismatch SSR/hydration do carrinho persistido */}
+      {!hydrated ? null : null}
+
       <AnimatePresence>
-        {count > 0 ? (
+        {hydrated && count > 0 ? (
           <motion.button
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -296,7 +310,7 @@ export function MenuExperience({ menu }: { menu: Menu }) {
 
               {!checkout ? (
                 <div className="mt-4 space-y-3">
-                  {cart.items.map((item) => (
+                  {items.map((item) => (
                     <div
                       key={item.key}
                       className="flex items-center justify-between gap-3 rounded-2xl bg-pc-paper px-3 py-3"
@@ -310,7 +324,7 @@ export function MenuExperience({ menu }: { menu: Menu }) {
                       <div className="flex items-center gap-2">
                         <button
                           className="rounded-full bg-white p-1 ring-1 ring-pc-stone"
-                          onClick={() => cart.setQty(item.key, item.quantity - 1)}
+                          onClick={() => setQty(item.key, item.quantity - 1)}
                         >
                           <Minus className="h-4 w-4" />
                         </button>
@@ -319,7 +333,7 @@ export function MenuExperience({ menu }: { menu: Menu }) {
                         </span>
                         <button
                           className="rounded-full bg-white p-1 ring-1 ring-pc-stone"
-                          onClick={() => cart.setQty(item.key, item.quantity + 1)}
+                          onClick={() => setQty(item.key, item.quantity + 1)}
                         >
                           <Plus className="h-4 w-4" />
                         </button>
@@ -335,7 +349,7 @@ export function MenuExperience({ menu }: { menu: Menu }) {
                     size="lg"
                     variant="primary"
                     onClick={() => setCheckout(true)}
-                    disabled={!cart.items.length}
+                    disabled={!items.length}
                   >
                     Continuar
                   </Button>

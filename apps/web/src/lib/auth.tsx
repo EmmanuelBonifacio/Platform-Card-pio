@@ -55,10 +55,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
+    const raw = await res.text();
     if (!res.ok) {
-      throw new Error(await res.text());
+      try {
+        const j = JSON.parse(raw) as { message?: string | string[] };
+        throw new Error(
+          Array.isArray(j.message) ? j.message.join(', ') : j.message || raw,
+        );
+      } catch (e) {
+        if (e instanceof Error && e.message !== raw) throw e;
+        throw new Error(raw || `Login falhou (${res.status})`);
+      }
     }
-    const data = (await res.json()) as { accessToken: string; user: User };
+    const data = JSON.parse(raw) as { accessToken: string; user: User };
+    if (!data.accessToken) throw new Error('Token ausente na resposta');
     localStorage.setItem(TOKEN_KEY, data.accessToken);
     localStorage.setItem(USER_KEY, JSON.stringify(data.user));
     setToken(data.accessToken);
