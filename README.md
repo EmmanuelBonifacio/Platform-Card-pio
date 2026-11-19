@@ -71,6 +71,11 @@ Variáveis: `SAAS_PLATFORM_*` em `.env.example`.
 
 Documentação completa: [`docs/`](./docs/).
 
+## Módulos entregues (sem Asaas)
+
+Painel: Pedidos, Cardápio, Marketing (cupons/campanhas), CRM/fidelidade, Relatórios+CSV, WhatsApp stub, Insights IA, Afiliados, Config (Pixel/GA/GTM).  
+Público: cupom no checkout, tracking scripts, PWA shell, SEO `generateMetadata`, dark mode.
+
 ## Estrutura
 
 ```

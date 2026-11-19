@@ -16,28 +16,29 @@
 - [x] CRUD completo categorias/produtos/adicionais/combos (API + UI)
 - [x] Kanban de pedidos (KDS visual básico)
 - [x] Alertas saldo baixo / ciclo a vencer
-- [ ] Subdomínio por tenant (Cloudflare)
+- [ ] Subdomínio por tenant (Cloudflare DNS) — campo persistido; provisionamento pendente
 - [x] Upload imagens (local + MinIO opcional)
 - [x] Testes unitários aceite/crédito + smoke HTTP
 
 ## Fase 2 — Canais e marketing
 
-- [ ] WhatsApp bot + fila BullMQ
-- [ ] Cupons / campanhas / winback
-- [ ] Relatórios CSV/PDF + dashboard live
-- [ ] Meta Pixel / GA / GTM no cardápio público
-- [ ] PWA + push
+- [x] WhatsApp config + webhook stub (Meta/Evolution real depois; BullMQ opcional)
+- [x] Cupons / campanhas / winback (API + painel + checkout)
+- [x] Relatórios CSV + dashboard (últimos 30 dias)
+- [x] Meta Pixel / GA / GTM no cardápio público
+- [x] PWA (manifest + service worker shell)
+- [ ] Push notifications (próximo)
 
 ## Fase 3 — CRM / fidelidade / IA
 
-- [ ] CRM segmentação + score
-- [ ] Cashback / pontos / selos / VIP
-- [ ] IA atendimento / upsell / insights
-- [ ] Programa de indicações
+- [x] CRM segmentação + score
+- [x] Cashback / pontos / selos / VIP no aceite
+- [x] IA insights heurísticos (LLM pluggable depois)
+- [x] Programa de indicações (links + click tracking)
 
 ## Fase 4 — Pagamentos e escala
 
-- [ ] **Asaas** (PIX/cartão/boleto) — Gestor + opcional checkout cliente
+- [ ] **Asaas** (PIX/cartão/boleto) — Gestor + opcional checkout cliente *(por último)*
 - [ ] Idempotência webhooks harden
 - [ ] Redis cache / rate limit fino
 - [ ] Observabilidade (logs, métricas)
@@ -45,7 +46,7 @@
 
 ## Fase 5 — Premium UX
 
-- [ ] Dark mode + animações Framer
-- [ ] SEO cardápio público
+- [x] Dark mode + animações Framer
+- [x] SEO cardápio público (`generateMetadata`)
 - [ ] Impressão automática cozinha
 - [ ] Multi-loja / redes

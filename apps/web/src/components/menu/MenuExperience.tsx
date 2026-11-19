@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Minus, Plus, ShoppingBag, X } from 'lucide-react';
-import { apiPost } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
 import { useCart } from '@/lib/cart';
 import { brl } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { TrackingScripts } from '@/components/TrackingScripts';
 
 type Menu = {
   tenant: {
@@ -54,6 +55,9 @@ export function MenuExperience({ menu }: { menu: Menu }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ number: number } | null>(null);
   const [error, setError] = useState('');
+  const [coupon, setCoupon] = useState('');
+  const [discountCents, setDiscountCents] = useState(0);
+  const [couponMsg, setCouponMsg] = useState('');
 
   useEffect(() => {
     void useCart.persist.rehydrate().then(() => {
@@ -61,6 +65,16 @@ export function MenuExperience({ menu }: { menu: Menu }) {
       setSlug(menu.tenant.slug);
     });
   }, [menu.tenant.slug, setSlug]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (!ref) return;
+    void apiPost(
+      `/public/${menu.tenant.slug}/affiliates/${encodeURIComponent(ref)}/click`,
+      {},
+    ).catch(() => undefined);
+  }, [menu.tenant.slug]);
 
   const featured = useMemo(
     () =>
@@ -70,11 +84,39 @@ export function MenuExperience({ menu }: { menu: Menu }) {
     [menu.categories],
   );
 
-  const total = items.reduce((acc, item) => {
+  const subtotal = items.reduce((acc, item) => {
     const addons = (item.addons ?? []).reduce((a, x) => a + x.priceCents, 0);
     return acc + (item.unitPriceCents + addons) * item.quantity;
   }, 0);
+  const total = Math.max(0, subtotal - discountCents);
   const count = items.reduce((a, i) => a + i.quantity, 0);
+
+  async function applyCoupon() {
+    setCouponMsg('');
+    if (!coupon.trim()) {
+      setDiscountCents(0);
+      return;
+    }
+    try {
+      const res = await apiGet<{
+        valid: boolean;
+        discountCents?: number;
+        message?: string;
+      }>(
+        `/public/${menu.tenant.slug}/coupons/validate?code=${encodeURIComponent(coupon)}&orderCents=${subtotal}`,
+      );
+      if (!res.valid) {
+        setDiscountCents(0);
+        setCouponMsg(res.message || 'Cupom inválido');
+        return;
+      }
+      setDiscountCents(res.discountCents ?? 0);
+      setCouponMsg(`Desconto ${brl(res.discountCents ?? 0)}`);
+    } catch (e) {
+      setDiscountCents(0);
+      setCouponMsg(e instanceof Error ? e.message : 'Cupom inválido');
+    }
+  }
 
   async function placeOrder() {
     setBusy(true);
@@ -93,7 +135,8 @@ export function MenuExperience({ menu }: { menu: Menu }) {
           notes: notes || undefined,
           addressJson:
             type === 'DELIVERY' ? { line: address } : undefined,
-          source: 'web',
+          source: 'pwa',
+          couponCode: coupon.trim() || undefined,
           items: items.map((i) => ({
             productId: i.productId,
             name: i.name,
@@ -104,6 +147,8 @@ export function MenuExperience({ menu }: { menu: Menu }) {
         },
       );
       clear();
+      setDiscountCents(0);
+      setCoupon('');
       setDone({ number: order.number });
       setCheckout(false);
       setOpen(false);
@@ -116,6 +161,7 @@ export function MenuExperience({ menu }: { menu: Menu }) {
 
   return (
     <main className="pc-grain min-h-screen pb-28">
+      <TrackingScripts slug={menu.tenant.slug} />
       <header className="relative overflow-hidden border-b border-pc-stone/70 bg-pc-ink text-pc-cream">
         <div className="absolute inset-0 opacity-40">
           <div className="absolute -left-20 top-0 h-56 w-56 rounded-full bg-pc-lime/30 blur-3xl" />
@@ -401,6 +447,29 @@ export function MenuExperience({ menu }: { menu: Menu }) {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                   />
+                  <div className="flex gap-2">
+                    <input
+                      className="pc-input"
+                      placeholder="Cupom"
+                      value={coupon}
+                      onChange={(e) => setCoupon(e.target.value.toUpperCase())}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => void applyCoupon()}
+                    >
+                      Aplicar
+                    </Button>
+                  </div>
+                  {couponMsg ? (
+                    <p className="text-xs text-pc-leaf">{couponMsg}</p>
+                  ) : null}
+                  {discountCents > 0 ? (
+                    <p className="text-sm text-pc-muted">
+                      Subtotal {brl(subtotal)} − desconto {brl(discountCents)}
+                    </p>
+                  ) : null}
                   {error ? (
                     <p className="text-sm text-pc-danger">{error}</p>
                   ) : null}

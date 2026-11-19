@@ -6,6 +6,9 @@ import {
 import { OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreditsService } from '../billing/credits/credits.service';
+import { CrmService } from '../crm/crm.service';
+import { MarketingService } from '../marketing/marketing.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 type CreatePublicOrderInput = {
   type: OrderType;
@@ -21,6 +24,7 @@ type CreatePublicOrderInput = {
   customerPhone: string;
   customerName?: string;
   source?: string;
+  couponCode?: string;
 };
 
 @Injectable()
@@ -28,6 +32,9 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly credits: CreditsService,
+    private readonly crm: CrmService,
+    private readonly whatsapp: WhatsappService,
+    private readonly marketing: MarketingService,
   ) {}
 
   /**
@@ -60,27 +67,60 @@ export class OrdersService {
       return acc + (item.unitPriceCents + addons) * item.quantity;
     }, 0);
 
+    let discountCents = 0;
+    let couponId: string | undefined;
+    if (input.couponCode?.trim()) {
+      const coupon = await this.marketing.validateCoupon(
+        tenantId,
+        input.couponCode,
+        subtotal,
+      );
+      discountCents = coupon.discountCents;
+      couponId = coupon.couponId;
+    }
+
     const last = await this.prisma.order.findFirst({
       where: { tenantId },
       orderBy: { number: 'desc' },
       select: { number: true },
     });
 
-    return this.prisma.order.create({
-      data: {
-        tenantId,
-        customerId: customer.id,
-        number: (last?.number ?? 0) + 1,
-        type: input.type,
-        status: OrderStatus.PENDING,
-        itemsJson: input.items,
-        subtotalCents: subtotal,
-        totalCents: subtotal,
-        notes: input.notes,
-        addressJson: input.addressJson,
-        source: input.source ?? 'web',
-        creditDebited: false,
-      },
+    const totalCents = Math.max(0, subtotal - discountCents);
+
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          tenantId,
+          customerId: customer.id,
+          number: (last?.number ?? 0) + 1,
+          type: input.type,
+          status: OrderStatus.PENDING,
+          itemsJson: input.items,
+          subtotalCents: subtotal,
+          discountCents,
+          totalCents,
+          notes: input.notes,
+          addressJson: input.addressJson,
+          source: input.source ?? 'web',
+          creditDebited: false,
+        },
+      });
+
+      if (couponId) {
+        await tx.couponRedemption.create({
+          data: {
+            couponId,
+            customerId: customer.id,
+            orderId: order.id,
+          },
+        });
+        await tx.coupon.update({
+          where: { id: couponId },
+          data: { redeemedCount: { increment: 1 } },
+        });
+      }
+
+      return order;
     });
   }
 
@@ -90,9 +130,10 @@ export class OrdersService {
   async accept(tenantId: string, orderId: string, userId: string) {
     const gate = await this.credits.assertCanAcceptOrder(tenantId);
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
         where: { id: orderId, tenantId },
+        include: { customer: { select: { phone: true } } },
       });
       if (!order) throw new NotFoundException('Pedido não encontrado');
       if (order.status !== OrderStatus.PENDING) {
@@ -122,7 +163,7 @@ export class OrdersService {
         }
       }
 
-      const updated = await tx.order.update({
+      const row = await tx.order.update({
         where: { id: order.id },
         data: {
           status: OrderStatus.ACCEPTED,
@@ -140,12 +181,25 @@ export class OrdersService {
           action: 'order.accept',
           entity: 'Order',
           entityId: order.id,
-          metadata: { creditDebited: updated.creditDebited, cycleId },
+          metadata: { creditDebited: row.creditDebited, cycleId },
         },
       });
 
-      return updated;
+      return { row, customerId: order.customerId, phone: order.customer?.phone };
     });
+
+    await this.crm.onOrderAccepted(
+      tenantId,
+      updated.customerId,
+      updated.row.totalCents,
+    );
+    await this.whatsapp.notifyOrderAccepted(
+      tenantId,
+      updated.row.number,
+      updated.phone,
+    );
+
+    return updated.row;
   }
 
   async reject(tenantId: string, orderId: string, reason?: string) {

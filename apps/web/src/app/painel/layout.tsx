@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { AlertsBanner } from '@/components/AlertsBanner';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
@@ -11,6 +12,13 @@ import { cn } from '@/lib/utils';
 const links = [
   { href: '/painel/pedidos', label: 'Pedidos' },
   { href: '/painel/cardapio', label: 'Cardápio' },
+  { href: '/painel/marketing', label: 'Marketing' },
+  { href: '/painel/crm', label: 'CRM' },
+  { href: '/painel/relatorios', label: 'Relatórios' },
+  { href: '/painel/whatsapp', label: 'WhatsApp' },
+  { href: '/painel/ia', label: 'IA' },
+  { href: '/painel/afiliados', label: 'Afiliados' },
+  { href: '/painel/config', label: 'Config' },
   { href: '/gestor', label: 'Gestor' },
 ];
 
@@ -55,13 +63,13 @@ export default function PainelLayout({
             </Link>
             <p className="text-xs text-pc-muted">{user?.name || user?.email}</p>
           </div>
-          <nav className="flex flex-wrap items-center gap-1 sm:gap-2">
+          <nav className="flex max-w-[70vw] flex-wrap items-center justify-end gap-1 sm:gap-1.5">
             {links.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
                 className={cn(
-                  'rounded-full px-3 py-1.5 text-sm font-medium',
+                  'rounded-full px-2.5 py-1 text-xs font-medium sm:text-sm',
                   pathname.startsWith(l.href)
                     ? 'bg-pc-ink text-pc-lime'
                     : 'text-pc-muted hover:bg-pc-stone/60',
@@ -76,6 +84,7 @@ export default function PainelLayout({
             >
               Público
             </Link>
+            <ThemeToggle />
             <Button size="sm" variant="ghost" onClick={logout}>
               Sair
             </Button>
