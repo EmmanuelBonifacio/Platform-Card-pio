@@ -19,10 +19,12 @@ const envSchema = z.object({
   // Asaas — fase final (opcional agora)
   ASAAS_API_KEY: z.string().optional(),
   ASAAS_BASE_URL: z.string().url().optional(),
-  MINIO_ENDPOINT: z.string().optional(),
-  MINIO_ACCESS_KEY: z.string().optional(),
-  MINIO_SECRET_KEY: z.string().optional(),
+  MINIO_ENDPOINT: z.string().optional().or(z.literal('')),
+  MINIO_ACCESS_KEY: z.string().optional().or(z.literal('')),
+  MINIO_SECRET_KEY: z.string().optional().or(z.literal('')),
   MINIO_BUCKET: z.string().default('platform-cardapio'),
+  UPLOAD_DIR: z.string().default('uploads'),
+  UPLOAD_DRIVER: z.enum(['local', 'minio']).default('local'),
 });
 
 export type Env = z.infer<typeof envSchema>;

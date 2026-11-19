@@ -42,6 +42,16 @@ export class BillingController {
     return this.billing.getSubscription(tenantId);
   }
 
+  @Get('alerts')
+  @Roles(UserRole.TENANT_OWNER, UserRole.MANAGER, UserRole.OPERATOR)
+  async alerts(@CurrentTenantId() tenantId: string) {
+    const { balance } = await this.billing.getSubscription(tenantId);
+    return {
+      alerts: (balance as { alerts?: unknown[] }).alerts ?? [],
+      balance,
+    };
+  }
+
   @Post('checkout')
   @Roles(UserRole.TENANT_OWNER)
   checkout(

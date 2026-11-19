@@ -4,12 +4,9 @@ import {
   Headers,
   Post,
   Req,
-  ReqType,
 } from '@nestjs/common';
-import {
-  SaasPlatformService,
-  SaasProvisionPayload,
-} from './saas-platform.service';
+import type { SaasProvisionPayload } from './saas-platform.service';
+import { SaasPlatformService } from './saas-platform.service';
 
 @Controller('integrations/saas-platform')
 export class SaasPlatformController {

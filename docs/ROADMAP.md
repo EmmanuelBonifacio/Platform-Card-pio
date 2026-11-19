@@ -13,12 +13,12 @@
 
 ## Fase 1 — MVP operação
 
-- [ ] CRUD completo categorias/produtos/adicionais/combos (API + UI)
-- [ ] Kanban de pedidos + KDS
-- [ ] Alertas saldo baixo / ciclo a vencer
+- [x] CRUD completo categorias/produtos/adicionais/combos (API + UI)
+- [x] Kanban de pedidos (KDS visual básico)
+- [x] Alertas saldo baixo / ciclo a vencer
 - [ ] Subdomínio por tenant (Cloudflare)
-- [ ] Upload imagens (MinIO)
-- [ ] Testes e2e aceite/crédito
+- [x] Upload imagens (local + MinIO opcional)
+- [x] Testes unitários aceite/crédito + smoke HTTP
 
 ## Fase 2 — Canais e marketing
 

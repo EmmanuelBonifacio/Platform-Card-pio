@@ -8,7 +8,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { OrderStatus, OrderType, UserRole } from '@prisma/client';
+import { OrderStatus, OrderType, Prisma, UserRole } from '@prisma/client';
 import { IsArray, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import {
   CurrentTenantId,
@@ -44,7 +44,7 @@ class CreateOrderDto {
   notes?: string;
 
   @IsOptional()
-  addressJson?: Record<string, unknown>;
+  addressJson?: Prisma.InputJsonValue;
 
   @IsOptional()
   @IsString()

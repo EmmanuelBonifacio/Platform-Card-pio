@@ -9,6 +9,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
 import { HealthController } from './modules/health/health.controller';
 import { SaasPlatformModule } from './modules/integrations/saas-platform/saas-platform.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { PrismaModule } from './prisma/prisma.module';
     CatalogModule,
     OrdersModule,
     BillingModule,
+    UploadsModule,
     SaasPlatformModule,
   ],
   controllers: [HealthController],

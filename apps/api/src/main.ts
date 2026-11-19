@@ -2,11 +2,14 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
+import { existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
 
@@ -16,7 +19,16 @@ async function bootstrap() {
     .map((o) => o.trim())
     .filter(Boolean);
 
-  app.use(helmet());
+  const uploadDir = config.get<string>('UPLOAD_DIR') ?? 'uploads';
+  const absUpload = join(process.cwd(), uploadDir);
+  if (!existsSync(absUpload)) mkdirSync(absUpload, { recursive: true });
+  app.useStaticAssets(absUpload, { prefix: '/uploads/' });
+
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   app.enableCors({
     origin: origins.length ? origins : true,
     credentials: true,

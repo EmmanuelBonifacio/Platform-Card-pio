@@ -85,17 +85,35 @@ export class CreditsService {
     tx: Prisma.TransactionClient,
     cycleId: string,
   ): Promise<boolean> {
-    const updated = await tx.$executeRaw`
-      UPDATE credit_cycles
-      SET consumed = consumed + 1, updated_at = NOW()
-      WHERE id = ${cycleId}::uuid
-        AND status = 'ACTIVE'
-        AND (order_limit IS NULL OR consumed < order_limit)
-    `;
-    return updated === 1;
+    const cycle = await tx.creditCycle.findUnique({ where: { id: cycleId } });
+    if (!cycle || cycle.status !== CycleStatus.ACTIVE) return false;
+    if (cycle.orderLimit != null && cycle.consumed >= cycle.orderLimit) {
+      return false;
+    }
+    // Optimistic lock em `consumed` evita débito duplo sob concorrência.
+    const updated = await tx.creditCycle.updateMany({
+      where: {
+        id: cycleId,
+        status: CycleStatus.ACTIVE,
+        consumed: cycle.consumed,
+        ...(cycle.orderLimit == null
+          ? {}
+          : { orderLimit: cycle.orderLimit }),
+      },
+      data: { consumed: { increment: 1 } },
+    });
+    return updated.count === 1;
   }
 
   async getBalance(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        status: true,
+        trustUntil: true,
+        trustExtraOrders: true,
+      },
+    });
     const sub = await this.prisma.subscription.findUnique({
       where: { tenantId },
       include: { plan: true, currentCycle: true },
@@ -108,18 +126,81 @@ export class CreditsService {
         remaining: 0,
         endsAt: null,
         status: 'none',
+        tenantStatus: tenant?.status ?? null,
+        alerts: [
+          {
+            level: 'critical' as const,
+            code: 'NO_CYCLE',
+            message: 'Nenhum ciclo ativo. Faça uma recarga no Gestor.',
+          },
+        ],
       };
     }
     const { currentCycle: c, plan } = sub;
     const remaining =
       c.orderLimit == null ? null : Math.max(0, c.orderLimit - c.consumed);
+    const now = new Date();
+    const msLeft = c.endsAt.getTime() - now.getTime();
+    const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+    const alerts: Array<{
+      level: 'info' | 'warning' | 'critical';
+      code: string;
+      message: string;
+    }> = [];
+
+    if (c.status !== 'ACTIVE' || c.endsAt < now) {
+      alerts.push({
+        level: 'critical',
+        code: 'CYCLE_EXPIRED',
+        message: 'Ciclo expirado. Recarregue para continuar aceitando pedidos.',
+      });
+    } else if (daysLeft <= 3) {
+      alerts.push({
+        level: 'warning',
+        code: 'CYCLE_ENDING',
+        message: `Ciclo termina em ${daysLeft} dia(s).`,
+      });
+    }
+
+    if (c.orderLimit != null) {
+      const pct = c.consumed / c.orderLimit;
+      if (remaining === 0) {
+        alerts.push({
+          level: 'critical',
+          code: 'CREDITS_EXHAUSTED',
+          message: 'Créditos esgotados. Recarregue ou peça liberação em confiança.',
+        });
+      } else if (pct >= 0.9) {
+        alerts.push({
+          level: 'warning',
+          code: 'CREDITS_LOW',
+          message: `Saldo baixo: restam ${remaining} de ${c.orderLimit} pedidos.`,
+        });
+      }
+    }
+
+    if (
+      tenant?.status === 'TRUST_RELEASE' &&
+      tenant.trustUntil &&
+      tenant.trustUntil > now
+    ) {
+      alerts.push({
+        level: 'info',
+        code: 'TRUST_ACTIVE',
+        message: `Liberação em confiança até ${tenant.trustUntil.toISOString()} (+${tenant.trustExtraOrders} pedidos).`,
+      });
+    }
+
     return {
       plan,
       limit: c.orderLimit,
       consumed: c.consumed,
       remaining,
       endsAt: c.endsAt,
+      daysLeft,
       status: c.status,
+      tenantStatus: tenant?.status ?? null,
+      alerts,
     };
   }
 }

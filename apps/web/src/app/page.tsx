@@ -22,6 +22,12 @@ export default function HomePage() {
             Ver cardápio demo
           </Link>
           <Link
+            href="/painel"
+            className="rounded-full bg-white px-6 py-3 font-medium text-emerald-950"
+          >
+            Painel (pedidos)
+          </Link>
+          <Link
             href="/gestor"
             className="rounded-full border border-emerald-400/40 px-6 py-3 font-medium text-emerald-100"
           >
