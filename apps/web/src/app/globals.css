@@ -1,26 +1,147 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --pc-ink: #12261c;
+  --pc-forest: #1f4d38;
+  --pc-leaf: #2f6b4f;
+  --pc-mint: #3d9b74;
+  --pc-lime: #b7f05a;
+  --pc-paper: #f6f1e8;
+  --pc-cream: #fffaf3;
+  --pc-stone: #e7e0d4;
+  --pc-muted: #5c6b62;
+  --pc-danger: #c23b2a;
+  --pc-warning: #c9841a;
+  --background: var(--pc-paper);
+  --foreground: var(--pc-ink);
+  --radius: 1.25rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-pc-ink: var(--pc-ink);
+  --color-pc-forest: var(--pc-forest);
+  --color-pc-leaf: var(--pc-leaf);
+  --color-pc-mint: var(--pc-mint);
+  --color-pc-lime: var(--pc-lime);
+  --color-pc-paper: var(--pc-paper);
+  --color-pc-cream: var(--pc-cream);
+  --color-pc-stone: var(--pc-stone);
+  --color-pc-muted: var(--pc-muted);
+  --color-pc-danger: var(--pc-danger);
+  --color-pc-warning: var(--pc-warning);
+  --font-sans: var(--font-dm-sans);
+  --font-display: var(--font-syne);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-syne), var(--font-dm-sans), system-ui, sans-serif;
+  letter-spacing: -0.03em;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--pc-lime) 55%, white);
+  color: var(--pc-ink);
+}
+
+.pc-grain {
+  background-image:
+    radial-gradient(ellipse 80% 60% at 10% -10%, rgba(183, 240, 90, 0.28), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(47, 107, 79, 0.18), transparent 50%),
+    linear-gradient(180deg, var(--pc-cream), var(--pc-paper));
+}
+
+.pc-grid {
+  background-image:
+    linear-gradient(rgba(18, 38, 28, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(18, 38, 28, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.pc-card {
+  background: color-mix(in oklab, white 86%, var(--pc-cream));
+  border: 1px solid color-mix(in oklab, var(--pc-stone) 80%, transparent);
+  box-shadow: 0 18px 50px -28px rgba(18, 38, 28, 0.35);
+}
+
+.pc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.pc-btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.pc-btn-primary {
+  background: var(--pc-ink);
+  color: var(--pc-lime);
+  box-shadow: 0 12px 30px -16px rgba(18, 38, 28, 0.8);
+}
+
+.pc-btn-primary:hover {
+  background: var(--pc-forest);
+}
+
+.pc-btn-lime {
+  background: var(--pc-lime);
+  color: var(--pc-ink);
+}
+
+.pc-btn-ghost {
+  background: transparent;
+  border: 1px solid color-mix(in oklab, var(--pc-ink) 18%, transparent);
+  color: var(--pc-ink);
+}
+
+.pc-input {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid var(--pc-stone);
+  background: white;
+  padding: 0.75rem 1rem;
+  outline: none;
+}
+
+.pc-input:focus {
+  border-color: var(--pc-mint);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--pc-mint) 25%, transparent);
+}
+
+@keyframes pc-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.pc-float {
+  animation: pc-float 5s ease-in-out infinite;
 }

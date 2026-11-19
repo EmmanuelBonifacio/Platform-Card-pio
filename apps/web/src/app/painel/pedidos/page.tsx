@@ -1,8 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiGet, apiPost } from '@/lib/api';
-import { getToken } from '@/lib/auth';
+import { motion } from 'framer-motion';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { brl } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 type Order = {
   id: string;
@@ -11,51 +14,39 @@ type Order = {
   totalCents: number;
   type: string;
   creditDebited: boolean;
-  notes?: string | null;
   customer?: { name?: string | null; phone: string } | null;
   itemsJson: Array<{ name: string; quantity: number; unitPriceCents: number }>;
   createdAt: string;
 };
 
 const COLUMNS = [
-  { key: 'PENDING', title: 'Novos' },
-  { key: 'ACCEPTED', title: 'Aceitos' },
-  { key: 'PREPARING', title: 'Preparando' },
-  { key: 'READY', title: 'Prontos' },
-  { key: 'OUT_FOR_DELIVERY', title: 'Entrega' },
-  { key: 'DELIVERED', title: 'Entregues' },
+  { key: 'PENDING', title: 'Novos', tone: 'from-amber-100 to-white' },
+  { key: 'ACCEPTED', title: 'Aceitos', tone: 'from-lime-100 to-white' },
+  { key: 'PREPARING', title: 'Preparando', tone: 'from-emerald-50 to-white' },
+  { key: 'READY', title: 'Prontos', tone: 'from-sky-50 to-white' },
+  { key: 'OUT_FOR_DELIVERY', title: 'Entrega', tone: 'from-violet-50 to-white' },
+  { key: 'DELIVERED', title: 'Entregues', tone: 'from-stone-100 to-white' },
 ] as const;
 
-function brl(cents: number) {
-  return (cents / 100).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  });
-}
-
 export default function PedidosKanbanPage() {
+  const { token } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const token = getToken();
-    if (!token) {
-      setError('Faça login em /painel');
-      return;
-    }
+    if (!token) return;
     try {
-      const data = await apiGet<Order[]>('/orders', token);
-      setOrders(data);
+      setOrders(await apiGet<Order[]>('/orders', token));
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar');
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     void load();
-    const t = setInterval(() => void load(), 8000);
+    const t = setInterval(() => void load(), 7000);
     return () => clearInterval(t);
   }, [load]);
 
@@ -70,7 +61,6 @@ export default function PedidosKanbanPage() {
   }, [orders]);
 
   async function accept(id: string) {
-    const token = getToken();
     if (!token) return;
     setBusy(id);
     try {
@@ -84,7 +74,6 @@ export default function PedidosKanbanPage() {
   }
 
   async function reject(id: string) {
-    const token = getToken();
     if (!token) return;
     setBusy(id);
     try {
@@ -98,22 +87,10 @@ export default function PedidosKanbanPage() {
   }
 
   async function advance(id: string, status: string) {
-    const token = getToken();
     if (!token) return;
     setBusy(id);
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3010/api'}/orders/${id}/status`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status }),
-        },
-      );
-      if (!res.ok) throw new Error(await res.text());
+      await apiPatch(`/orders/${id}/status`, { status }, token);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao atualizar');
@@ -124,51 +101,56 @@ export default function PedidosKanbanPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-neutral-900">Pedidos</h1>
-        <button
-          onClick={() => void load()}
-          className="rounded-full border px-4 py-1.5 text-sm"
-        >
+      <div className="mb-5 flex items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl font-extrabold text-pc-ink">Pedidos</h1>
+          <p className="text-sm text-pc-muted">
+            Aceite para debitar crédito · atualiza a cada 7s
+          </p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => void load()}>
           Atualizar
-        </button>
+        </Button>
       </div>
+
       {error ? (
-        <p className="mb-4 whitespace-pre-wrap rounded-xl bg-red-50 p-3 text-sm text-red-700">
+        <p className="mb-4 whitespace-pre-wrap rounded-2xl bg-red-50 p-3 text-sm text-red-700">
           {error}
         </p>
       ) : null}
+
       <div className="flex gap-3 overflow-x-auto pb-4">
         {COLUMNS.map((col) => (
           <div
             key={col.key}
-            className="w-72 shrink-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/5"
+            className={`w-72 shrink-0 rounded-[1.5rem] bg-gradient-to-b ${col.tone} p-3 ring-1 ring-pc-stone/70`}
           >
-            <h2 className="mb-3 text-sm font-semibold text-emerald-900">
+            <h2 className="mb-3 text-sm font-semibold text-pc-forest">
               {col.title}{' '}
-              <span className="text-neutral-400">
+              <span className="text-pc-muted">
                 ({byStatus[col.key]?.length ?? 0})
               </span>
             </h2>
             <div className="space-y-3">
               {(byStatus[col.key] ?? []).map((o) => (
-                <article
+                <motion.article
                   key={o.id}
-                  className="rounded-xl border border-neutral-100 bg-[#fafcfa] p-3"
+                  layout
+                  className="rounded-[1.2rem] bg-white/90 p-3 shadow-sm ring-1 ring-black/5"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="font-medium">#{o.number}</p>
-                      <p className="text-xs text-neutral-500">
+                      <p className="font-display text-lg font-bold">#{o.number}</p>
+                      <p className="text-xs text-pc-muted">
                         {o.customer?.name || o.customer?.phone || 'Cliente'} ·{' '}
                         {o.type}
                       </p>
                     </div>
-                    <p className="text-sm font-semibold text-emerald-800">
+                    <p className="text-sm font-semibold text-pc-forest">
                       {brl(o.totalCents)}
                     </p>
                   </div>
-                  <ul className="mt-2 space-y-0.5 text-xs text-neutral-600">
+                  <ul className="mt-2 space-y-0.5 text-xs text-pc-muted">
                     {o.itemsJson?.slice(0, 4).map((it, idx) => (
                       <li key={idx}>
                         {it.quantity}x {it.name}
@@ -176,49 +158,52 @@ export default function PedidosKanbanPage() {
                     ))}
                   </ul>
                   {o.creditDebited ? (
-                    <p className="mt-2 text-[10px] uppercase tracking-wide text-emerald-700">
+                    <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-pc-leaf">
                       crédito debitado
                     </p>
                   ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {o.status === 'PENDING' ? (
                       <>
-                        <button
+                        <Button
+                          size="sm"
+                          variant="lime"
                           disabled={busy === o.id}
                           onClick={() => void accept(o.id)}
-                          className="rounded-full bg-emerald-600 px-3 py-1 text-xs text-white"
                         >
                           Aceitar
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           disabled={busy === o.id}
                           onClick={() => void reject(o.id)}
-                          className="rounded-full bg-neutral-200 px-3 py-1 text-xs"
                         >
                           Rejeitar
-                        </button>
+                        </Button>
                       </>
                     ) : null}
                     {o.status === 'ACCEPTED' ? (
-                      <button
+                      <Button
+                        size="sm"
                         disabled={busy === o.id}
                         onClick={() => void advance(o.id, 'PREPARING')}
-                        className="rounded-full bg-emerald-600 px-3 py-1 text-xs text-white"
                       >
                         Preparar
-                      </button>
+                      </Button>
                     ) : null}
                     {o.status === 'PREPARING' ? (
-                      <button
+                      <Button
+                        size="sm"
                         disabled={busy === o.id}
                         onClick={() => void advance(o.id, 'READY')}
-                        className="rounded-full bg-emerald-600 px-3 py-1 text-xs text-white"
                       >
                         Pronto
-                      </button>
+                      </Button>
                     ) : null}
                     {o.status === 'READY' ? (
-                      <button
+                      <Button
+                        size="sm"
                         disabled={busy === o.id}
                         onClick={() =>
                           void advance(
@@ -228,22 +213,21 @@ export default function PedidosKanbanPage() {
                               : 'DELIVERED',
                           )
                         }
-                        className="rounded-full bg-emerald-600 px-3 py-1 text-xs text-white"
                       >
                         {o.type === 'DELIVERY' ? 'Saiu' : 'Entregar'}
-                      </button>
+                      </Button>
                     ) : null}
                     {o.status === 'OUT_FOR_DELIVERY' ? (
-                      <button
+                      <Button
+                        size="sm"
                         disabled={busy === o.id}
                         onClick={() => void advance(o.id, 'DELIVERED')}
-                        className="rounded-full bg-emerald-600 px-3 py-1 text-xs text-white"
                       >
                         Entregue
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
-                </article>
+                </motion.article>
               ))}
             </div>
           </div>
