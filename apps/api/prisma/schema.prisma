@@ -1,0 +1,618 @@
+// Platform Cardápio (FoodFlow AI)
+// Multi-tenant SaaS — schema único com tenantId em todas as tabelas de negócio.
+// Isolamento: middleware + Prisma where tenantId = request.tenantId (defense in depth).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  LOW_BALANCE
+  EXHAUSTED
+  TRUST_RELEASE
+  BLOCKED
+  SUSPENDED
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  TENANT_OWNER
+  MANAGER
+  OPERATOR
+  KITCHEN
+  MARKETING
+  SUPPORT
+}
+
+enum OrderType {
+  DELIVERY
+  PICKUP
+  DINE_IN
+}
+
+enum OrderStatus {
+  PENDING // criado pelo cliente — NÃO debita crédito
+  ACCEPTED // lojista aceitou — AQUI debita 1 crédito
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REJECTED
+}
+
+enum PaymentMethod {
+  PIX
+  CREDIT_CARD
+  DEBIT_CARD
+  BOLETO
+  CASH
+  ONLINE_WALLET
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+  CANCELLED
+}
+
+enum CycleOrigin {
+  PURCHASE
+  UPGRADE
+  DOWNGRADE
+  ADMIN
+  TRUST
+  TRIAL
+}
+
+enum CycleStatus {
+  ACTIVE
+  CLOSED
+  EXPIRED
+}
+
+enum CampaignType {
+  COUPON
+  CASHBACK
+  POINTS_BONUS
+  WINBACK
+  BROADCAST
+}
+
+enum LoyaltyTier {
+  BRONZE
+  SILVER
+  GOLD
+  VIP
+}
+
+enum AffiliateStatus {
+  PENDING
+  ACTIVE
+  PAUSED
+  BLOCKED
+}
+
+// =============================================================================
+// PLATFORM / TENANCY
+// =============================================================================
+
+model Tenant {
+  id                 String       @id @default(uuid())
+  name               String
+  slug               String       @unique
+  subdomain          String?      @unique
+  logoUrl            String?      @map("logo_url")
+  phone              String?
+  email              String?
+  document           String? // CPF/CNPJ
+  timezone           String       @default("America/Sao_Paulo")
+  status             TenantStatus @default(TRIAL)
+  /// ID do tenant no SaaS Platform (EmmanuelBonifacio/SaaSPlatformDev)
+  saasTenantId       String?      @unique @map("saas_tenant_id")
+  saasSlug           String?      @map("saas_slug")
+  metaPixelId        String?      @map("meta_pixel_id")
+  gaMeasurementId    String?      @map("ga_measurement_id")
+  gtmContainerId     String?      @map("gtm_container_id")
+  whatsappNumber     String?      @map("whatsapp_number")
+  settings           Json         @default("{}")
+  trialEndsAt        DateTime?    @map("trial_ends_at")
+  trustUntil         DateTime?    @map("trust_until")
+  trustExtraOrders   Int          @default(0) @map("trust_extra_orders")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+
+  users              User[]
+  customers          Customer[]
+  categories         Category[]
+  products           Product[]
+  addons             Addon[]
+  combos             Combo[]
+  orders             Order[]
+  coupons            Coupon[]
+  campaigns          Campaign[]
+  subscription       Subscription?
+  creditCycles       CreditCycle[]
+  payments           PlatformPayment[]
+  trustLogs          TrustReleaseLog[]
+  auditLogs          AuditLog[]
+  affiliateLinks     AffiliateLink[]
+  loyaltyAccounts    LoyaltyAccount[]
+
+  @@map("tenants")
+}
+
+model User {
+  id             String    @id @default(uuid())
+  tenantId       String?   @map("tenant_id") // null = SUPER_ADMIN
+  email          String    @unique
+  passwordHash   String?   @map("password_hash")
+  name           String
+  role           UserRole  @default(OPERATOR)
+  googleId       String?   @unique @map("google_id")
+  /// ID do usuário no SaaS Platform (SSO bridge)
+  saasUserId     String?   @unique @map("saas_user_id")
+  isActive       Boolean   @default(true) @map("is_active")
+  lastLoginAt    DateTime? @map("last_login_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant         Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  auditLogs      AuditLog[]
+  acceptedOrders Order[]   @relation("OrderAcceptedBy")
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+// =============================================================================
+// CRM / CUSTOMERS
+// =============================================================================
+
+model Customer {
+  id              String      @id @default(uuid())
+  tenantId        String      @map("tenant_id")
+  name            String?
+  phone           String
+  email           String?
+  document        String?
+  birthDate       DateTime?   @map("birth_date") @db.Date
+  addresses       Json        @default("[]")
+  tags            String[]    @default([])
+  segment         String?
+  loyaltyScore    Int         @default(0) @map("loyalty_score")
+  totalOrders     Int         @default(0) @map("total_orders")
+  totalSpentCents Int         @default(0) @map("total_spent_cents")
+  lastOrderAt     DateTime?   @map("last_order_at")
+  lgpdConsentAt   DateTime?   @map("lgpd_consent_at")
+  marketingOptIn  Boolean     @default(false) @map("marketing_opt_in")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders          Order[]
+  loyalty         LoyaltyAccount?
+  couponRedemptions CouponRedemption[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId, email])
+  @@index([tenantId, loyaltyScore])
+  @@map("customers")
+}
+
+// =============================================================================
+// CATALOG
+// =============================================================================
+
+model Category {
+  id          String    @id @default(uuid())
+  tenantId    String    @map("tenant_id")
+  name        String
+  slug        String
+  description String?
+  imageUrl    String?   @map("image_url")
+  sortOrder   Int       @default(0) @map("sort_order")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products    Product[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive, sortOrder])
+  @@map("categories")
+}
+
+model Product {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  categoryId      String?   @map("category_id")
+  name            String
+  slug            String
+  description     String?
+  priceCents      Int       @map("price_cents")
+  promoPriceCents Int?      @map("promo_price_cents")
+  imageUrl        String?   @map("image_url")
+  isActive        Boolean   @default(true) @map("is_active")
+  isFeatured      Boolean   @default(false) @map("is_featured")
+  isAvailable     Boolean   @default(true) @map("is_available")
+  prepMinutes     Int?      @map("prep_minutes")
+  /// Variações: [{name, options:[{label, priceCents}]}]
+  variations      Json      @default("[]")
+  searchVector    String?   @map("search_vector")
+  sortOrder       Int       @default(0) @map("sort_order")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category        Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  productAddons   ProductAddon[]
+  comboItems      ComboItem[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive, isFeatured])
+  @@index([tenantId, categoryId])
+  @@map("products")
+}
+
+model Addon {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  name       String
+  priceCents Int      @map("price_cents")
+  isActive   Boolean  @default(true) @map("is_active")
+  maxQty     Int      @default(1) @map("max_qty")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products   ProductAddon[]
+
+  @@index([tenantId, isActive])
+  @@map("addons")
+}
+
+model ProductAddon {
+  productId String  @map("product_id")
+  addonId   String  @map("addon_id")
+  required  Boolean @default(false)
+
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  addon     Addon   @relation(fields: [addonId], references: [id], onDelete: Cascade)
+
+  @@id([productId, addonId])
+  @@map("product_addons")
+}
+
+model Combo {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  name       String
+  description String?
+  priceCents Int      @map("price_cents")
+  imageUrl   String?  @map("image_url")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items      ComboItem[]
+
+  @@index([tenantId, isActive])
+  @@map("combos")
+}
+
+model ComboItem {
+  comboId    String  @map("combo_id")
+  productId  String  @map("product_id")
+  quantity   Int     @default(1)
+
+  combo      Combo   @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([comboId, productId])
+  @@map("combo_items")
+}
+
+// =============================================================================
+// ORDERS
+// =============================================================================
+
+model Order {
+  id                    String        @id @default(uuid())
+  tenantId              String        @map("tenant_id")
+  customerId            String?       @map("customer_id")
+  number                Int // sequencial por tenant (gerado na app)
+  type                  OrderType     @default(DELIVERY)
+  status                OrderStatus   @default(PENDING)
+  itemsJson             Json          @map("items_json")
+  subtotalCents         Int           @map("subtotal_cents")
+  deliveryFeeCents      Int           @default(0) @map("delivery_fee_cents")
+  discountCents         Int           @default(0) @map("discount_cents")
+  totalCents            Int           @map("total_cents")
+  customerPaymentMethod PaymentMethod? @map("customer_payment_method")
+  customerPaymentStatus PaymentStatus  @default(PENDING) @map("customer_payment_status")
+  notes                 String?
+  addressJson           Json?         @map("address_json")
+  /// true somente após aceite do lojista (débito de crédito)
+  creditDebited         Boolean       @default(false) @map("credit_debited")
+  creditCycleId         String?       @map("credit_cycle_id")
+  acceptedAt            DateTime?     @map("accepted_at")
+  acceptedById          String?       @map("accepted_by_id")
+  cancelledAt           DateTime?     @map("cancelled_at")
+  cancelReason          String?       @map("cancel_reason")
+  deliveredAt           DateTime?     @map("delivered_at")
+  source                String        @default("web") // web | whatsapp | pwa | kiosk
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  tenant                Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer              Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  acceptedBy            User?         @relation("OrderAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+  creditCycle           CreditCycle?  @relation(fields: [creditCycleId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, customerId])
+  @@map("orders")
+}
+
+// =============================================================================
+// BILLING (pré-pago — Platform Cardápio)
+// =============================================================================
+
+model Plan {
+  id              String   @id @default(uuid())
+  code            String   @unique // iniciante | essencial | premium
+  name            String
+  description     String?
+  priceCents      Int      @map("price_cents")
+  /// null = ilimitado
+  orderLimit      Int?     @map("order_limit")
+  cycleDays       Int      @default(30) @map("cycle_days")
+  features        Json     @default("[]")
+  isActive        Boolean  @default(true) @map("is_active")
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  subscriptions   Subscription[]
+  cycles          CreditCycle[]
+  payments        PlatformPayment[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id              String       @id @default(uuid())
+  tenantId        String       @unique @map("tenant_id")
+  planId          String       @map("plan_id")
+  status          TenantStatus @default(TRIAL)
+  currentCycleId  String?      @unique @map("current_cycle_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan            Plan         @relation(fields: [planId], references: [id])
+  currentCycle    CreditCycle? @relation("CurrentCycle", fields: [currentCycleId], references: [id], onDelete: SetNull)
+
+  @@map("subscriptions")
+}
+
+model CreditCycle {
+  id           String      @id @default(uuid())
+  tenantId     String      @map("tenant_id")
+  planId       String      @map("plan_id")
+  startsAt     DateTime    @map("starts_at")
+  endsAt       DateTime    @map("ends_at")
+  /// null = ilimitado
+  orderLimit   Int?        @map("order_limit")
+  consumed     Int         @default(0)
+  origin       CycleOrigin @default(PURCHASE)
+  status       CycleStatus @default(ACTIVE)
+  paymentId    String?     @unique @map("payment_id")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan         Plan        @relation(fields: [planId], references: [id])
+  payment      PlatformPayment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  orders       Order[]
+  asCurrentOf  Subscription? @relation("CurrentCycle")
+
+  @@index([tenantId, status])
+  @@index([tenantId, endsAt])
+  @@map("credit_cycles")
+}
+
+/// Pagamento do lojista → Platform Cardápio (assinatura/recarga).
+/// Asaas fica para fase final (stub de provider).
+model PlatformPayment {
+  id               String        @id @default(uuid())
+  tenantId         String        @map("tenant_id")
+  planId           String        @map("plan_id")
+  amountCents      Int           @map("amount_cents")
+  method           PaymentMethod
+  status           PaymentStatus @default(PENDING)
+  provider         String        @default("manual") // manual | asaas (futuro)
+  providerChargeId String?       @map("provider_charge_id")
+  providerEventId  String?       @unique @map("provider_event_id")
+  idempotencyKey   String        @unique @map("idempotency_key")
+  paidAt           DateTime?     @map("paid_at")
+  metadata         Json          @default("{}")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan             Plan          @relation(fields: [planId], references: [id])
+  cycle            CreditCycle?
+
+  @@index([tenantId, status])
+  @@map("platform_payments")
+}
+
+model TrustReleaseLog {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  adminUserId    String?  @map("admin_user_id")
+  reason         String
+  validUntil     DateTime @map("valid_until")
+  extraOrders    Int      @default(0) @map("extra_orders")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("trust_release_logs")
+}
+
+// =============================================================================
+// LOYALTY / MARKETING
+// =============================================================================
+
+model LoyaltyAccount {
+  id           String      @id @default(uuid())
+  tenantId     String      @map("tenant_id")
+  customerId   String      @unique @map("customer_id")
+  points       Int         @default(0)
+  cashbackCents Int        @default(0) @map("cashback_cents")
+  stamps       Int         @default(0)
+  tier         LoyaltyTier @default(BRONZE)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer     Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, tier])
+  @@map("loyalty_accounts")
+}
+
+model Coupon {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  code            String
+  description     String?
+  discountType    String    @map("discount_type") // percent | fixed
+  discountValue   Int       @map("discount_value")
+  minOrderCents   Int?      @map("min_order_cents")
+  maxRedemptions  Int?      @map("max_redemptions")
+  redeemedCount   Int       @default(0) @map("redeemed_count")
+  startsAt        DateTime? @map("starts_at")
+  endsAt          DateTime? @map("ends_at")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  redemptions     CouponRedemption[]
+
+  @@unique([tenantId, code])
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id         String   @id @default(uuid())
+  couponId   String   @map("coupon_id")
+  customerId String   @map("customer_id")
+  orderId    String?  @map("order_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([couponId])
+  @@map("coupon_redemptions")
+}
+
+model Campaign {
+  id          String       @id @default(uuid())
+  tenantId    String       @map("tenant_id")
+  name        String
+  type        CampaignType
+  payload     Json         @default("{}")
+  startsAt    DateTime?    @map("starts_at")
+  endsAt      DateTime?    @map("ends_at")
+  isActive    Boolean      @default(true) @map("is_active")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, type, isActive])
+  @@map("campaigns")
+}
+
+// =============================================================================
+// AFFILIATES
+// =============================================================================
+
+model AffiliateLink {
+  id             String          @id @default(uuid())
+  tenantId       String          @map("tenant_id")
+  code           String
+  commissionBps  Int             @default(1000) @map("commission_bps") // 10%
+  status         AffiliateStatus @default(PENDING)
+  clicks         Int             @default(0)
+  conversions    Int             @default(0)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@map("affiliate_links")
+}
+
+// =============================================================================
+// AUDIT / INTEGRATION EVENTS
+// =============================================================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String?  @map("tenant_id")
+  userId     String?  @map("user_id")
+  action     String
+  entity     String?
+  entityId   String?  @map("entity_id")
+  ip         String?
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant     Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+/// Eventos idempotentes de integração (SaaS Platform, Asaas futuro, WhatsApp)
+model IntegrationEvent {
+  id          String   @id @default(uuid())
+  source      String // saas_platform | asaas | whatsapp | meta
+  eventKey    String   @unique @map("event_key")
+  payload     Json
+  status      String   @default("received") // received | processed | failed
+  processedAt DateTime? @map("processed_at")
+  error       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([source, status])
+  @@map("integration_events")
+}

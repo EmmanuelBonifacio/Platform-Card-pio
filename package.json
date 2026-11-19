@@ -1,0 +1,26 @@
+{
+  "name": "platform-cardapio",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @platform-cardapio/api & npm run dev -w @platform-cardapio/web",
+    "dev:api": "npm run start:dev -w @platform-cardapio/api",
+    "dev:web": "npm run dev -w @platform-cardapio/web",
+    "build": "npm run build -w @platform-cardapio/api && npm run build -w @platform-cardapio/web",
+    "db:generate": "npm run prisma:generate -w @platform-cardapio/api",
+    "db:migrate": "npm run prisma:migrate -w @platform-cardapio/api",
+    "db:seed": "npm run prisma:seed -w @platform-cardapio/api"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
