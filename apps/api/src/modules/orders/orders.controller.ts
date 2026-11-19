@@ -49,6 +49,10 @@ class CreateOrderDto {
   @IsOptional()
   @IsString()
   source?: string;
+
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
 }
 
 class StatusDto {
@@ -67,7 +71,16 @@ export class OrdersController {
     @Body() body: CreateOrderDto,
   ) {
     const tenantId = await this.orders.resolveTenantIdBySlug(slug);
-    return this.orders.createPublic(tenantId, body);
+    return this.orders.createPublic(tenantId, {
+      type: body.type,
+      items: body.items,
+      notes: body.notes,
+      addressJson: body.addressJson,
+      customerPhone: body.customerPhone,
+      customerName: body.customerName,
+      source: body.source,
+      couponCode: body.couponCode,
+    });
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

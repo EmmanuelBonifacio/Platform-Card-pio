@@ -17,6 +17,22 @@
   --radius: 1.25rem;
 }
 
+html.dark {
+  --pc-ink: #e8f2ea;
+  --pc-forest: #9fd4b4;
+  --pc-leaf: #7fc49a;
+  --pc-mint: #5fb98a;
+  --pc-lime: #b7f05a;
+  --pc-paper: #0f1a14;
+  --pc-cream: #15241b;
+  --pc-stone: #24352b;
+  --pc-muted: #9aada1;
+  --pc-danger: #f07167;
+  --pc-warning: #e0a84a;
+  --background: #0c1410;
+  --foreground: var(--pc-ink);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -68,6 +84,24 @@ h3,
     radial-gradient(ellipse 80% 60% at 10% -10%, rgba(183, 240, 90, 0.28), transparent 55%),
     radial-gradient(ellipse 70% 50% at 100% 0%, rgba(47, 107, 79, 0.18), transparent 50%),
     linear-gradient(180deg, var(--pc-cream), var(--pc-paper));
+}
+
+html.dark .pc-grain {
+  background-image:
+    radial-gradient(ellipse 80% 60% at 10% -10%, rgba(183, 240, 90, 0.12), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(47, 107, 79, 0.22), transparent 50%),
+    linear-gradient(180deg, var(--pc-cream), var(--pc-paper));
+}
+
+html.dark .pc-card {
+  background: color-mix(in oklab, var(--pc-cream) 88%, black);
+  border-color: color-mix(in oklab, var(--pc-stone) 70%, transparent);
+}
+
+html.dark .pc-input {
+  background: color-mix(in oklab, var(--pc-cream) 90%, black);
+  color: var(--pc-ink);
+  border-color: var(--pc-stone);
 }
 
 .pc-grid {
@@ -144,4 +178,19 @@ h3,
 
 .pc-float {
   animation: pc-float 5s ease-in-out infinite;
+}
+
+@media print {
+  header,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+  }
+  .pc-card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
 }

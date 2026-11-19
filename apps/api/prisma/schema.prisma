@@ -152,6 +152,8 @@ model Tenant {
   auditLogs          AuditLog[]
   affiliateLinks     AffiliateLink[]
   loyaltyAccounts    LoyaltyAccount[]
+  pushSubscriptions  PushSubscription[]
+  storeLocations     StoreLocation[]
 
   @@map("tenants")
 }
@@ -358,6 +360,7 @@ model Order {
   cancelReason          String?       @map("cancel_reason")
   deliveredAt           DateTime?     @map("delivered_at")
   source                String        @default("web") // web | whatsapp | pwa | kiosk
+  storeLocationId       String?       @map("store_location_id")
   createdAt             DateTime      @default(now()) @map("created_at")
   updatedAt             DateTime      @updatedAt @map("updated_at")
 
@@ -365,10 +368,12 @@ model Order {
   customer              Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   acceptedBy            User?         @relation("OrderAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
   creditCycle           CreditCycle?  @relation(fields: [creditCycleId], references: [id], onDelete: SetNull)
+  storeLocation         StoreLocation? @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, number])
   @@index([tenantId, status, createdAt])
   @@index([tenantId, customerId])
+  @@index([tenantId, storeLocationId])
   @@map("orders")
 }
 
@@ -615,4 +620,44 @@ model IntegrationEvent {
 
   @@index([source, status])
   @@map("integration_events")
+}
+
+// =============================================================================
+// PUSH / MULTI-LOJA
+// =============================================================================
+
+model PushSubscription {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  endpoint   String
+  p256dh     String
+  auth       String
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, endpoint])
+  @@index([tenantId])
+  @@map("push_subscriptions")
+}
+
+/// Locais / filiais de um mesmo tenant (rede)
+model StoreLocation {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  slug        String
+  phone       String?
+  addressJson Json?    @map("address_json")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders      Order[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive])
+  @@map("store_locations")
 }

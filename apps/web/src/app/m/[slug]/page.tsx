@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { MenuExperience } from '@/components/menu/MenuExperience';
 import { apiGet } from '@/lib/api';
 
@@ -32,6 +33,28 @@ type MenuResponse = {
     imageUrl?: string | null;
   }>;
 };
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  try {
+    const menu = await apiGet<MenuResponse>(`/public/${slug}/menu`);
+    return {
+      title: `${menu.tenant.name} — cardápio digital`,
+      description: `Peça online no ${menu.tenant.name} com Platform Cardápio.`,
+      openGraph: {
+        title: menu.tenant.name,
+        description: `Cardápio digital de ${menu.tenant.name}`,
+      },
+      alternates: { canonical: `/m/${slug}` },
+    };
+  } catch {
+    return { title: 'Cardápio' };
+  }
+}
 
 export default async function PublicMenuPage({
   params,
