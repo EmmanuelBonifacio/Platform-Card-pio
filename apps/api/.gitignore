@@ -4,5 +4,6 @@ node_modules
 
 /generated/prisma
 
-uploads/
+# Diretório de arquivos enviados (não o módulo src/modules/uploads)
+/uploads/
 .env
