@@ -22,12 +22,12 @@
 
 ## Fase 2 — Canais e marketing
 
-- [x] WhatsApp config + webhook stub (Meta/Evolution real depois; BullMQ opcional)
+- [x] WhatsApp config + webhook stub (Meta/Evolution real depois)
 - [x] Cupons / campanhas / winback (API + painel + checkout)
 - [x] Relatórios CSV + dashboard (últimos 30 dias)
 - [x] Meta Pixel / GA / GTM no cardápio público
 - [x] PWA (manifest + service worker shell)
-- [ ] Push notifications (próximo)
+- [x] Push notifications (subscribe API + SW handler; VAPID real depois)
 
 ## Fase 3 — CRM / fidelidade / IA
 
@@ -39,14 +39,14 @@
 ## Fase 4 — Pagamentos e escala
 
 - [ ] **Asaas** (PIX/cartão/boleto) — Gestor + opcional checkout cliente *(por último)*
-- [ ] Idempotência webhooks harden
-- [ ] Redis cache / rate limit fino
-- [ ] Observabilidade (logs, métricas)
-- [ ] Hardening LGPD / auditoria
+- [x] Idempotência webhooks harden (claim processing + IntegrationEvent)
+- [x] Redis cache menu público + rate limit fino (login/webhook + ThrottlerGuard)
+- [ ] Observabilidade (logs, métricas) — Pino já no Nest; métricas depois
+- [x] Hardening LGPD / auditoria (export + anonymize + audit log)
 
 ## Fase 5 — Premium UX
 
 - [x] Dark mode + animações Framer
 - [x] SEO cardápio público (`generateMetadata`)
-- [ ] Impressão automática cozinha
-- [ ] Multi-loja / redes
+- [x] Impressão cozinha (`/painel/cozinha`)
+- [x] Multi-loja / redes (`StoreLocation` + painel)

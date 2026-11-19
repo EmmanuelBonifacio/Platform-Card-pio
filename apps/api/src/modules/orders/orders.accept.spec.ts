@@ -49,12 +49,14 @@ describe('OrdersService.accept — débito só no aceite', () => {
     const crm = { onOrderAccepted: jest.fn() };
     const whatsapp = { notifyOrderAccepted: jest.fn() };
     const marketing = { validateCoupon: jest.fn() };
+    const push = { notifyTenant: jest.fn() };
     const service = new OrdersService(
       prisma as never,
       credits as unknown as CreditsService,
       crm as never,
       whatsapp as never,
       marketing as never,
+      push as never,
     );
 
     const result = await service.accept('ten-1', 'ord-1', 'user-1');
@@ -86,6 +88,7 @@ describe('OrdersService.accept — débito só no aceite', () => {
       { onOrderAccepted: jest.fn() } as never,
       { notifyOrderAccepted: jest.fn() } as never,
       { validateCoupon: jest.fn() } as never,
+      { notifyTenant: jest.fn() } as never,
     );
 
     await service.reject('ten-1', 'ord-1', 'sem estoque');

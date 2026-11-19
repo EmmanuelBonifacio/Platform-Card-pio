@@ -61,16 +61,39 @@ export class SaasPlatformService {
       });
     }
 
+    // Claim atômico: só um worker processa (idempotência sob retry/concorrência)
     await this.prisma.integrationEvent.upsert({
       where: { eventKey },
       create: {
         source: 'saas_platform',
         eventKey,
         payload,
-        status: 'received',
+        status: 'processing',
       },
-      update: { payload },
+      update: {},
     });
+    const claimed = await this.prisma.integrationEvent.updateMany({
+      where: {
+        eventKey,
+        status: { in: ['received', 'processing', 'failed'] },
+      },
+      data: { status: 'processing', payload, error: null },
+    });
+    const again = await this.prisma.integrationEvent.findUnique({
+      where: { eventKey },
+    });
+    if (again?.status === 'processed') {
+      return this.prisma.tenant.findUnique({
+        where: { saasTenantId: payload.saasTenantId },
+      });
+    }
+    if (claimed.count === 0 && again?.status === 'processing') {
+      // outro worker já reivindicou — devolve estado atual se existir
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { saasTenantId: payload.saasTenantId },
+      });
+      if (tenant) return tenant;
+    }
 
     const planCode = payload.planCode ?? 'iniciante';
     const plan = await this.prisma.plan.findUnique({ where: { code: planCode } });

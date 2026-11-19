@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreditsService } from '../billing/credits/credits.service';
 import { CrmService } from '../crm/crm.service';
 import { MarketingService } from '../marketing/marketing.service';
+import { PushService } from '../push/push.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 type CreatePublicOrderInput = {
@@ -35,6 +36,7 @@ export class OrdersService {
     private readonly crm: CrmService,
     private readonly whatsapp: WhatsappService,
     private readonly marketing: MarketingService,
+    private readonly push: PushService,
   ) {}
 
   /**
@@ -198,6 +200,11 @@ export class OrdersService {
       updated.row.number,
       updated.phone,
     );
+    await this.push.notifyTenant(tenantId, {
+      title: `Pedido #${updated.row.number} aceito`,
+      body: 'Prepare a cozinha — novo pedido em andamento.',
+      url: '/painel/cozinha',
+    });
 
     return updated.row;
   }

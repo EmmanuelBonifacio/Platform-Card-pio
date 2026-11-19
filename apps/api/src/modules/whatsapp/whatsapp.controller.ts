@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
 import { IsBoolean, IsOptional, IsString } from 'class-validator';
 import { CurrentTenantId } from '../../common/decorators/tenant.decorator';
@@ -36,6 +37,7 @@ export class WhatsappController {
 
   /** Webhook público (Meta/Evolution) — stub */
   @Post('webhook')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   inbound(
     @Body()
     body: { tenantSlug?: string; from: string; text?: string },

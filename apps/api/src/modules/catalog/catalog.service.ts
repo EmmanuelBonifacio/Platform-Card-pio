@@ -1,11 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { RedisService } from '../../core/redis/redis.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async publicMenu(slug: string) {
+    const cacheKey = `menu:public:${slug}`;
+    const cached = await this.redis.getJson<unknown>(cacheKey).catch(() => null);
+    if (cached) return cached;
+
     const tenant = await this.prisma.tenant.findUnique({
       where: { slug },
       select: {
@@ -41,7 +49,13 @@ export class CatalogService {
       include: { items: { include: { product: true } } },
     });
 
-    return { tenant, categories, combos };
+    const menu = { tenant, categories, combos };
+    await this.redis.setJson(cacheKey, menu, 30).catch(() => undefined);
+    return menu;
+  }
+
+  async invalidateMenuCache(slug: string) {
+    await this.redis.del(`menu:public:${slug}`).catch(() => undefined);
   }
 
   async search(tenantId: string, q: string) {

@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 
 const links = [
   { href: '/painel/pedidos', label: 'Pedidos' },
+  { href: '/painel/cozinha', label: 'Cozinha' },
   { href: '/painel/cardapio', label: 'Cardápio' },
   { href: '/painel/marketing', label: 'Marketing' },
   { href: '/painel/crm', label: 'CRM' },
@@ -18,6 +19,8 @@ const links = [
   { href: '/painel/whatsapp', label: 'WhatsApp' },
   { href: '/painel/ia', label: 'IA' },
   { href: '/painel/afiliados', label: 'Afiliados' },
+  { href: '/painel/lojas', label: 'Lojas' },
+  { href: '/painel/push', label: 'Push' },
   { href: '/painel/config', label: 'Config' },
   { href: '/gestor', label: 'Gestor' },
 ];

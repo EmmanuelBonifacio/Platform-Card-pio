@@ -179,3 +179,18 @@ html.dark .pc-input {
 .pc-float {
   animation: pc-float 5s ease-in-out infinite;
 }
+
+@media print {
+  header,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+  }
+  .pc-card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiGet, apiPatch } from '@/lib/api';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { brl } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -115,19 +115,56 @@ export default function CrmPage() {
                   : ''}
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() =>
-                void apiPatch(
-                  `/crm/customers/${c.id}`,
-                  { segment: 'vip', marketingOptIn: true },
-                  token!,
-                ).then(load)
-              }
-            >
-              Marcar VIP
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  void apiPatch(
+                    `/crm/customers/${c.id}`,
+                    { segment: 'vip', marketingOptIn: true },
+                    token!,
+                  ).then(load)
+                }
+              >
+                Marcar VIP
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  void apiGet(`/privacy/customers/${c.id}/export`, token!).then(
+                    (data) => {
+                      const blob = new Blob([JSON.stringify(data, null, 2)], {
+                        type: 'application/json',
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `lgpd-${c.id}.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    },
+                  )
+                }
+              >
+                Export LGPD
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  if (!confirm('Anonimizar este cliente?')) return;
+                  void apiPost(
+                    `/privacy/customers/${c.id}/anonymize`,
+                    {},
+                    token!,
+                  ).then(load);
+                }}
+              >
+                Anonimizar
+              </Button>
+            </div>
           </li>
         ))}
         {!customers.length ? (
